@@ -48,22 +48,65 @@ def add_item(sale_id: int, payload: SaleItemCreate, db: Session = Depends(get_db
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or inactive")
 
-    # For stocked items, check availability before adding to cart
-    if product.product_type == "stocked" and product.stock_qty < payload.quantity:
+    existing_item = (
+        db.query(SaleItem)
+        .filter(SaleItem.sale_id == sale.id, SaleItem.product_id == product.id)
+        .first()
+    )
+    new_quantity = (existing_item.quantity if existing_item else 0) + payload.quantity
+
+    if product.product_type == "stocked" and product.stock_qty < new_quantity:
         raise HTTPException(status_code=400, detail=f"Insufficient stock for '{product.name}' (available: {product.stock_qty})")
 
-    line_total = product.sell_price * payload.quantity
-    item = SaleItem(
-        sale_id=sale.id,
-        product_id=product.id,
-        quantity=payload.quantity,
-        unit_price=product.sell_price,
-        line_total=line_total,
-    )
-    db.add(item)
+    if existing_item:
+        old_line_total = existing_item.line_total
+        existing_item.quantity = new_quantity
+        existing_item.line_total = product.sell_price * new_quantity
+        sale.total_amount = sale.total_amount - old_line_total + existing_item.line_total
+    else:
+        line_total = product.sell_price * payload.quantity
+        item = SaleItem(
+            sale_id=sale.id,
+            product_id=product.id,
+            quantity=payload.quantity,
+            unit_price=product.sell_price,
+            line_total=line_total,
+        )
+        db.add(item)
+        sale.total_amount = sale.total_amount + line_total
 
-    # Recalculate sale total from all items
-    sale.total_amount = sale.total_amount + line_total
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+@router.patch("/{sale_id}/items/{item_id}", response_model=SaleOut)
+def update_item_quantity(sale_id: int, item_id: int, quantity: int, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.status != "open":
+        raise HTTPException(status_code=400, detail=f"Cannot modify a sale with status '{sale.status}'")
+
+    item = db.query(SaleItem).filter(SaleItem.id == item_id, SaleItem.sale_id == sale_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found on this sale")
+
+    if quantity <= 0:
+        sale.total_amount = sale.total_amount - item.line_total
+        db.delete(item)
+        db.commit()
+        db.refresh(sale)
+        return sale
+
+    product = db.query(Product).filter(Product.id == item.product_id).first()
+    if product.product_type == "stocked" and product.stock_qty < quantity:
+        raise HTTPException(status_code=400, detail=f"Insufficient stock for '{product.name}' (available: {product.stock_qty})")
+
+    old_line_total = item.line_total
+    item.quantity = quantity
+    item.line_total = item.unit_price * quantity
+    sale.total_amount = sale.total_amount - old_line_total + item.line_total
+
     db.commit()
     db.refresh(sale)
     return sale
@@ -176,3 +219,15 @@ def get_receipt(sale_id: int, db: Session = Depends(get_db)):
 
     pdf_bytes = generate_receipt_pdf(sale, db)
     return Response(content=pdf_bytes, media_type="application/pdf")
+
+@router.post("/{sale_id}/cancel", response_model=SaleOut)
+def cancel_sale(sale_id: int, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.status not in ("open", "paid"):
+        raise HTTPException(status_code=400, detail=f"Cannot cancel a sale with status '{sale.status}'")
+    sale.status = "cancelled"
+    db.commit()
+    db.refresh(sale)
+    return sale
