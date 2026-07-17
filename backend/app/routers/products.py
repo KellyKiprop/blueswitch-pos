@@ -5,6 +5,7 @@ from typing import Optional, List
 from app.database import get_db
 from app.models.product import Product
 from app.schemas.product import ProductCreate, ProductUpdate, ProductOut
+from app.services.auth_dependency import require_admin
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -32,7 +33,7 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     return product
 
 @router.post("/", response_model=ProductOut, status_code=201)
-def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
+def create_product(payload: ProductCreate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     if payload.product_type not in ("stocked", "order_based"):
         raise HTTPException(status_code=400, detail="product_type must be 'stocked' or 'order_based'")
     product = Product(**payload.model_dump())
@@ -42,7 +43,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
     return product
 
 @router.patch("/{product_id}", response_model=ProductOut)
-def update_product(product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)):
+def update_product(product_id: int, payload: ProductUpdate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -53,7 +54,7 @@ def update_product(product_id: int, payload: ProductUpdate, db: Session = Depend
     return product
 
 @router.delete("/{product_id}", status_code=204)
-def deactivate_product(product_id: int, db: Session = Depends(get_db)):
+def deactivate_product(product_id: int, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     # Soft delete - keeps sale history intact
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:

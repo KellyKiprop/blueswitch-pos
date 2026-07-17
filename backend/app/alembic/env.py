@@ -12,6 +12,7 @@ from app.models.product import Product
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.payment import Payment
+from app.models.admin_user import AdminUser
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
