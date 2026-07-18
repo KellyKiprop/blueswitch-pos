@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime, timezone
 
 from app.database import get_db
@@ -38,7 +38,12 @@ def get_sale(sale_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{sale_id}/items", response_model=SaleOut)
 def add_item(sale_id: int, payload: SaleItemCreate, db: Session = Depends(get_db)):
-    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    sale = (
+        db.query(Sale)
+        .options(joinedload(Sale.items))
+        .filter(Sale.id == sale_id)
+        .first()
+    )
     if not sale:
         raise HTTPException(status_code=404, detail="Sale not found")
     if sale.status != "open":
@@ -48,11 +53,7 @@ def add_item(sale_id: int, payload: SaleItemCreate, db: Session = Depends(get_db
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or inactive")
 
-    existing_item = (
-        db.query(SaleItem)
-        .filter(SaleItem.sale_id == sale.id, SaleItem.product_id == product.id)
-        .first()
-    )
+    existing_item = next((item for item in sale.items if item.product_id == product.id), None)
     new_quantity = (existing_item.quantity if existing_item else 0) + payload.quantity
 
     if product.product_type == "stocked" and product.stock_qty < new_quantity:

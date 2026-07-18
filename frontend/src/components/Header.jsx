@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 
-function Header({ cashierName }) {
+function Header({ cashierName, onAdminClick }) {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -17,11 +17,19 @@ function Header({ cashierName }) {
           <p className="text-xs text-muted">Blueswitch Dynamic Limited</p>
         </div>
       </div>
-      <div className="text-right">
-        <p className="text-sm font-medium text-ink">{cashierName || "Cashier"}</p>
-        <p className="text-xs text-muted tabular-nums">
-          {time.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}
-        </p>
+      <div className="flex items-center gap-4">
+        <div className="text-right">
+          <p className="text-sm font-medium text-ink">{cashierName || "Cashier"}</p>
+          <p className="text-xs text-muted tabular-nums">
+            {time.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}
+          </p>
+        </div>
+        <button
+          onClick={onAdminClick}
+          className="text-xs text-muted hover:text-primary border border-gray-200 hover:border-primary rounded-lg px-3 py-1.5"
+        >
+          Admin
+        </button>
       </div>
     </header>
   )
