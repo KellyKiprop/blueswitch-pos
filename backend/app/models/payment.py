@@ -19,6 +19,7 @@ class Payment(Base):
 
     mpesa_ref = Column(String, nullable=True)  # Safaricom transaction code, once known
     mpesa_phone = Column(String, nullable=True)
+    checkout_request_id = Column(String, nullable=True, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     confirmed_at = Column(DateTime(timezone=True), nullable=True)

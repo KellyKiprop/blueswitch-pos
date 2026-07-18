@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime, timezone
 
@@ -232,3 +233,90 @@ def cancel_sale(sale_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(sale)
     return sale
+
+from app.services.daraja import initiate_stk_push
+import os
+
+RENDER_BASE_URL = os.getenv("RENDER_EXTERNAL_URL", "https://blueswitch-pos-api.onrender.com")
+
+class StkPushRequest(BaseModel):
+    phone_number: str  # format: 2547XXXXXXXX
+
+@router.post("/{sale_id}/mpesa/stk-push")
+def start_stk_push(sale_id: int, payload: StkPushRequest, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.status != "open":
+        raise HTTPException(status_code=400, detail=f"Cannot start payment for a sale with status '{sale.status}'")
+    if not sale.items:
+        raise HTTPException(status_code=400, detail="Cannot check out an empty sale")
+
+    callback_url = f"{RENDER_BASE_URL}/sales/mpesa/callback"
+
+    try:
+        result = initiate_stk_push(
+            phone_number=payload.phone_number,
+            amount=sale.total_amount,
+            account_reference=f"Sale-{sale.id}",
+            callback_url=callback_url,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to initiate M-Pesa payment: {str(e)}")
+
+    checkout_request_id = result.get("CheckoutRequestID")
+    if not checkout_request_id:
+        raise HTTPException(status_code=502, detail=f"Unexpected response from Safaricom: {result}")
+
+    payment = Payment(
+        sale_id=sale.id,
+        method="mpesa",
+        amount=sale.total_amount,
+        status="pending",
+        mpesa_phone=payload.phone_number,
+        checkout_request_id=checkout_request_id,
+    )
+    db.add(payment)
+    sale.status = "paid"
+    db.commit()
+
+    return {"message": "STK push sent. Waiting for customer to complete payment.", "checkout_request_id": checkout_request_id}
+
+@router.post("/mpesa/callback")
+async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    callback_data = body.get("Body", {}).get("stkCallback", {})
+    checkout_request_id = callback_data.get("CheckoutRequestID")
+    result_code = callback_data.get("ResultCode")
+
+    payment = (
+        db.query(Payment)
+        .filter(Payment.checkout_request_id == checkout_request_id)
+        .first()
+    )
+    if not payment:
+        return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+    if result_code == 0:
+        items = callback_data.get("CallbackMetadata", {}).get("Item", [])
+        mpesa_receipt = next((i["Value"] for i in items if i.get("Name") == "MpesaReceiptNumber"), None)
+
+        payment.status = "confirmed_auto"
+        payment.mpesa_ref = mpesa_receipt
+        payment.confirmed_at = datetime.now(timezone.utc)
+
+        sale = db.query(Sale).filter(Sale.id == payment.sale_id).first()
+        if sale:
+            sale.status = "completed"
+            for item in sale.items:
+                product = db.query(Product).filter(Product.id == item.product_id).first()
+                if product and product.product_type == "stocked":
+                    product.stock_qty = product.stock_qty - item.quantity
+    else:
+        payment.status = "failed"
+        sale = db.query(Sale).filter(Sale.id == payment.sale_id).first()
+        if sale:
+            sale.status = "open"  # let the cashier retry or switch to cash
+
+    db.commit()
+    return {"ResultCode": 0, "ResultDesc": "Accepted"}
