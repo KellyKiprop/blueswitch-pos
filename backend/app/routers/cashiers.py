@@ -22,6 +22,10 @@ def cashier_login(payload: CashierLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Incorrect PIN")
     return cashier
 
+@router.get("/all", response_model=list[CashierPublic])
+def list_all_cashiers(db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
+    return db.query(Cashier).order_by(Cashier.name).all()
+
 @router.post("/", response_model=CashierPublic, status_code=201)
 def create_cashier(payload: CashierCreate, db: Session = Depends(get_db), _admin: str = Depends(require_admin)):
     if len(payload.pin) < 4:

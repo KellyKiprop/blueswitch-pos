@@ -5,6 +5,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    title: "Blueswitch POS",
     icon: path.join(__dirname, 'public/logo.png'),
     webPreferences: {
       nodeIntegration: false,

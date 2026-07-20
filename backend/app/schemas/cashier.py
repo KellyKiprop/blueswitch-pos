@@ -3,6 +3,7 @@ from pydantic import BaseModel
 class CashierPublic(BaseModel):
     id: int
     name: str
+    is_active: bool = True
 
     class Config:
         from_attributes = True
