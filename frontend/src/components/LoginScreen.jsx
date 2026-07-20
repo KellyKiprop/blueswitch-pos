@@ -25,7 +25,7 @@ function LoginScreen({ onLoginSuccess, onCancel }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
         <div className="flex items-center gap-3 mb-6">
-          <img src="/logo.png" alt="Blueswitch logo" className="h-8 w-8 object-contain" />
+          <img src="./logo.png" alt="Blueswitch logo" className="h-8 w-8 object-contain" />
           <h2 className="text-lg font-semibold text-ink">Admin login</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">

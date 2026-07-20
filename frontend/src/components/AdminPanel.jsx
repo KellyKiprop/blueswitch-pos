@@ -82,7 +82,7 @@ function AdminPanel({ token, onLogout, onClose }) {
     <div className="h-screen flex flex-col bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Blueswitch logo" className="h-8 w-8 object-contain" />
+          <img src="./logo.png" alt="Blueswitch logo" className="h-8 w-8 object-contain" />
           <h1 className="text-lg font-semibold text-primary">Product management</h1>
         </div>
         <div className="flex items-center gap-3">

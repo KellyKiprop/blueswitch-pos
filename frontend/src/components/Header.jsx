@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 
-function Header({ cashierName, onAdminClick }) {
+function Header({ cashierName, onAdminClick, onEndShift }) {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -11,7 +11,7 @@ function Header({ cashierName, onAdminClick }) {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <img src="/logo.png" alt="Blueswitch logo" className="h-10 w-10 object-contain" />
+        <img src="./logo.png" alt="Blueswitch logo" className="h-10 w-10 object-contain" />
         <div>
           <h1 className="text-lg font-semibold text-primary">Blueswitch POS</h1>
           <p className="text-xs text-muted">Blueswitch Dynamic Limited</p>
@@ -29,6 +29,12 @@ function Header({ cashierName, onAdminClick }) {
           className="text-xs text-muted hover:text-primary border border-gray-200 hover:border-primary rounded-lg px-3 py-1.5"
         >
           Admin
+        </button>
+        <button
+          onClick={onEndShift}
+          className="text-xs text-muted hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg px-3 py-1.5"
+        >
+          End shift
         </button>
       </div>
     </header>

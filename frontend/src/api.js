@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8000"
+const BASE_URL = "https://blueswitch-pos-api.onrender.com"
 const TIMEOUT_MS = 15000
 
 async function fetchWithTimeout(url, options = {}) {
@@ -160,4 +160,42 @@ export async function deactivateProduct(productId, token) {
   })
   if (!res.ok) throw new Error("Failed to deactivate product")
   return true
+}
+
+export async function initiateStkPush(saleId, phoneNumber) {
+  const res = await fetchWithTimeout(`${BASE_URL}/sales/${saleId}/mpesa/stk-push`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone_number: phoneNumber }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Failed to send M-Pesa prompt")
+  }
+  return res.json()
+}
+
+export async function getSale(saleId) {
+  const res = await fetchWithTimeout(`${BASE_URL}/sales/${saleId}`)
+  if (!res.ok) throw new Error("Failed to fetch sale")
+  return res.json()
+}
+
+export async function getCashiers() {
+  const res = await fetchWithTimeout(`${BASE_URL}/cashiers/`)
+  if (!res.ok) throw new Error("Failed to fetch cashiers")
+  return res.json()
+}
+
+export async function cashierLogin(cashierId, pin) {
+  const res = await fetchWithTimeout(`${BASE_URL}/cashiers/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cashier_id: cashierId, pin }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Incorrect PIN")
+  }
+  return res.json()
 }

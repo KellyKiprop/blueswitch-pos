@@ -4,10 +4,15 @@ import ProductGrid from "./components/ProductGrid"
 import CartPanel from "./components/CartPanel"
 import CheckoutModal from "./components/CheckoutModal"
 import LoginScreen from "./components/LoginScreen"
+import SplashScreen from "./components/SplashScreen"
+import CashierLogin from "./components/CashierLogin"
 import AdminPanel from "./components/AdminPanel"
 import * as api from "./api"
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true)
+  const [splashFadingOut, setSplashFadingOut] = useState(false)
+  const [activeCashier, setActiveCashier] = useState(null)
   const [view, setView] = useState("till") // "till" | "login" | "admin"
   const [adminToken, setAdminToken] = useState(null)
 
@@ -20,6 +25,15 @@ function App() {
 
   useEffect(() => {
     loadProducts()
+  }, [])
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setSplashFadingOut(true), 4600)
+    const hideTimer = setTimeout(() => setShowSplash(false), 5000)
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(hideTimer)
+    }
   }, [])
 
   useEffect(() => {
@@ -40,7 +54,7 @@ function App() {
 
   const ensureSale = async () => {
     if (sale) return sale
-    const newSale = await api.createSale({ sale_type: "till", cashier_name: "Kelly" })
+    const newSale = await api.createSale({ sale_type: "till", cashier_name: activeCashier?.name || "Unknown" })
     setSale(newSale)
     return newSale
   }
@@ -159,9 +173,15 @@ function App() {
     return <AdminPanel token={adminToken} onLogout={handleLogout} onClose={handleCloseAdmin} />
   }
 
+  if (!showSplash && !activeCashier) {
+    return <CashierLogin onLoginSuccess={setActiveCashier} />
+  }
+
   return (
+    <>
+      {showSplash && <SplashScreen fadingOut={splashFadingOut} />}
     <div className="h-screen flex flex-col">
-      <Header cashierName="Kelly" onAdminClick={() => setView("login")} />
+      <Header cashierName={activeCashier?.name} onAdminClick={() => setView("login")} onEndShift={() => setActiveCashier(null)} />
       {actionError && (
         <div className="bg-red-50 border-b border-red-200 text-red-600 text-sm px-4 py-2 text-center">
           {actionError}
@@ -189,7 +209,6 @@ function App() {
           sale={sale}
           onClose={handleCloseModal}
           onCashPaid={handleCashPaid}
-          onMpesaCheckout={handleMpesaCheckout}
           onConfirmMpesa={handleConfirmMpesa}
         />
       )}
@@ -197,6 +216,7 @@ function App() {
         <LoginScreen onLoginSuccess={handleLoginSuccess} onCancel={() => setView("till")} />
       )}
     </div>
+    </>
   )
 }
 

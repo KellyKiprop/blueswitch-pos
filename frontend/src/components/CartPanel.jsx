@@ -2,7 +2,7 @@ function CartPanel({ sale, onRemoveItem, onUpdateQuantity, onCheckout, onCancelS
   const items = sale?.items || []
   const total = sale?.total_amount || 0
   const isCompleted = sale?.status === "completed"
-  const receiptUrl = sale ? "http://localhost:8000/sales/" + sale.id + "/receipt" : "#"
+  const receiptUrl = sale ? "https://blueswitch-pos-api.onrender.com/sales/" + sale.id + "/receipt" : "#"
 
   return (
     <div className="w-full md:w-96 bg-white border-l border-gray-200 flex flex-col h-full">
