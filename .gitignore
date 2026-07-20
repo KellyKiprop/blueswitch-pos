@@ -22,3 +22,7 @@ frontend/dist/
 # Editor
 .vscode/
 .idea/
+
+# Build outputs
+frontend/dist/
+frontend/release/
