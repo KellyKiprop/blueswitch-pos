@@ -6,6 +6,8 @@ import CheckoutModal from "./components/CheckoutModal"
 import LoginScreen from "./components/LoginScreen"
 import SplashScreen from "./components/SplashScreen"
 import CashierLogin from "./components/CashierLogin"
+import OrdersDashboard from "./components/OrdersDashboard"
+import NewOrderForm from "./components/NewOrderForm"
 import AdminPanel from "./components/AdminPanel"
 import * as api from "./api"
 
@@ -13,7 +15,8 @@ function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [splashFadingOut, setSplashFadingOut] = useState(false)
   const [activeCashier, setActiveCashier] = useState(null)
-  const [view, setView] = useState("till") // "till" | "login" | "admin"
+  const [view, setView] = useState("till") // "till" | "login" | "admin" | "orders"
+  const [showNewOrderForm, setShowNewOrderForm] = useState(false)
   const [adminToken, setAdminToken] = useState(null)
 
   const [products, setProducts] = useState([])
@@ -177,11 +180,27 @@ function App() {
     return <CashierLogin onLoginSuccess={setActiveCashier} />
   }
 
+  if (view === "orders") {
+    return (
+      <>
+        <OrdersDashboard onClose={() => setView("till")} onNewOrder={() => setShowNewOrderForm(true)} />
+        {showNewOrderForm && (
+          <NewOrderForm
+            products={products}
+            cashierName={activeCashier?.name}
+            onCreated={() => setShowNewOrderForm(false)}
+            onCancel={() => setShowNewOrderForm(false)}
+          />
+        )}
+      </>
+    )
+  }
+
   return (
     <>
       {showSplash && <SplashScreen fadingOut={splashFadingOut} />}
     <div className="h-screen flex flex-col">
-      <Header cashierName={activeCashier?.name} onAdminClick={() => setView("login")} onEndShift={() => setActiveCashier(null)} />
+      <Header cashierName={activeCashier?.name} onAdminClick={() => setView("login")} onOrdersClick={() => setView("orders")} onEndShift={() => setActiveCashier(null)} />
       {actionError && (
         <div className="bg-red-50 border-b border-red-200 text-red-600 text-sm px-4 py-2 text-center">
           {actionError}

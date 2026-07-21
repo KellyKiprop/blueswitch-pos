@@ -232,3 +232,41 @@ export async function deactivateCashier(cashierId, token) {
   if (!res.ok) throw new Error("Failed to deactivate cashier")
   return true
 }
+
+export async function listOrders(status) {
+  const url = status ? `${BASE_URL}/sales/orders/list?status=${status}` : `${BASE_URL}/sales/orders/list`
+  const res = await fetchWithTimeout(url)
+  if (!res.ok) throw new Error("Failed to fetch orders")
+  return res.json()
+}
+
+export async function markProcuring(saleId) {
+  const res = await fetchWithTimeout(`${BASE_URL}/sales/${saleId}/mark-procuring`, { method: "POST" })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Failed to update order")
+  }
+  return res.json()
+}
+
+export async function markReady(saleId) {
+  const res = await fetchWithTimeout(`${BASE_URL}/sales/${saleId}/mark-ready`, { method: "POST" })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Failed to update order")
+  }
+  return res.json()
+}
+
+export async function completeOrder(saleId, method) {
+  const res = await fetchWithTimeout(`${BASE_URL}/sales/${saleId}/complete-order`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ method }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Failed to complete order")
+  }
+  return res.json()
+}

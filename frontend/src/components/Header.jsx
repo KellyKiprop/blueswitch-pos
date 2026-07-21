@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 
-function Header({ cashierName, onAdminClick, onEndShift }) {
+function Header({ cashierName, onAdminClick, onOrdersClick, onEndShift }) {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -24,6 +24,12 @@ function Header({ cashierName, onAdminClick, onEndShift }) {
             {time.toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
+        <button
+          onClick={onOrdersClick}
+          className="text-xs text-muted hover:text-primary border border-gray-200 hover:border-primary rounded-lg px-3 py-1.5"
+        >
+          Orders
+        </button>
         <button
           onClick={onAdminClick}
           className="text-xs text-muted hover:text-primary border border-gray-200 hover:border-primary rounded-lg px-3 py-1.5"
