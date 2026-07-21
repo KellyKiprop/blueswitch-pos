@@ -12,6 +12,13 @@ from app.schemas.sale import SaleCreate, SaleItemCreate, SaleOut, CheckoutReques
 
 router = APIRouter(prefix="/sales", tags=["sales"])
 
+
+def completion_status_for(sale) -> str:
+    """Till sales complete immediately on payment. Order sales (laptops, CCTV, etc.)
+    move to 'deposit_paid' instead - they still need procurement and pickup steps
+    regardless of whether the deposit covers the full amount."""
+    return "deposit_paid" if sale.sale_type == "order" else "completed"
+
 @router.post("/", response_model=SaleOut, status_code=201)
 def create_sale(payload: SaleCreate, db: Session = Depends(get_db)):
     if payload.sale_type not in ("till", "order"):
@@ -164,11 +171,13 @@ def checkout(sale_id: int, payload: CheckoutRequest, db: Session = Depends(get_d
     # Only mark the sale complete and deduct stock once it's actually paid.
     # Cash: instant. M-Pesa: only when this endpoint is called after manual/auto confirmation.
     if payment_status != "pending" and sale.amount_paid >= sale.total_amount:
-        sale.status = "completed"
+        sale.status = completion_status_for(sale)
         for item in sale.items:
             product = db.query(Product).filter(Product.id == item.product_id).first()
             if product.product_type == "stocked":
                 product.stock_qty = product.stock_qty - item.quantity
+    elif payment_status != "pending" and sale.sale_type == "order":
+        sale.status = "deposit_paid"  # partial deposit accepted, still needs procurement
     elif payment_status == "pending":
         sale.status = "paid"  # awaiting M-Pesa confirmation
 
@@ -198,7 +207,7 @@ def confirm_payment(sale_id: int, mpesa_ref: str = None, db: Session = Depends(g
     if mpesa_ref:
         payment.mpesa_ref = mpesa_ref
 
-    sale.status = "completed"
+    sale.status = completion_status_for(sale)
     for item in sale.items:
         product = db.query(Product).filter(Product.id == item.product_id).first()
         if product.product_type == "stocked":
@@ -307,7 +316,7 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
 
         sale = db.query(Sale).filter(Sale.id == payment.sale_id).first()
         if sale:
-            sale.status = "completed"
+            sale.status = completion_status_for(sale)
             for item in sale.items:
                 product = db.query(Product).filter(Product.id == item.product_id).first()
                 if product and product.product_type == "stocked":
@@ -320,3 +329,70 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
 
     db.commit()
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
+@router.post("/{sale_id}/mark-procuring", response_model=SaleOut)
+def mark_procuring(sale_id: int, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.sale_type != "order":
+        raise HTTPException(status_code=400, detail="Only order sales can be marked as procuring")
+    if sale.status != "deposit_paid":
+        raise HTTPException(status_code=400, detail=f"Cannot mark procuring from status '{sale.status}'")
+    sale.status = "procuring"
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+@router.post("/{sale_id}/mark-ready", response_model=SaleOut)
+def mark_ready(sale_id: int, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.sale_type != "order":
+        raise HTTPException(status_code=400, detail="Only order sales can be marked ready")
+    if sale.status != "procuring":
+        raise HTTPException(status_code=400, detail=f"Cannot mark ready from status '{sale.status}'")
+    sale.status = "ready"
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+class CompleteOrderRequest(BaseModel):
+    method: str  # "cash" or "mpesa"
+    mpesa_ref: str | None = None
+
+@router.post("/{sale_id}/complete-order", response_model=SaleOut)
+def complete_order(sale_id: int, payload: CompleteOrderRequest, db: Session = Depends(get_db)):
+    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.sale_type != "order":
+        raise HTTPException(status_code=400, detail="Only order sales can be completed this way")
+    if sale.status != "ready":
+        raise HTTPException(status_code=400, detail=f"Order must be 'ready' before completing (currently '{sale.status}')")
+
+    balance = sale.total_amount - sale.amount_paid
+    if balance > 0:
+        payment = Payment(
+            sale_id=sale.id,
+            method=payload.method,
+            amount=balance,
+            status="confirmed_manual",
+            mpesa_ref=payload.mpesa_ref,
+            confirmed_at=datetime.now(timezone.utc),
+        )
+        db.add(payment)
+        sale.amount_paid = sale.total_amount
+
+    sale.status = "completed"
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+@router.get("/orders/list", response_model=list[SaleOut])
+def list_orders(status: str | None = None, db: Session = Depends(get_db)):
+    query = db.query(Sale).filter(Sale.sale_type == "order")
+    if status:
+        query = query.filter(Sale.status == status)
+    return query.order_by(Sale.created_at.desc()).all()

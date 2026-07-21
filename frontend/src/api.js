@@ -199,3 +199,36 @@ export async function cashierLogin(cashierId, pin) {
   }
   return res.json()
 }
+
+export async function getAllCashiers(token) {
+  const res = await fetchWithTimeout(`${BASE_URL}/cashiers/all`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error("Failed to fetch cashiers")
+  return res.json()
+}
+
+export async function createCashier(name, pin, token) {
+  const res = await fetchWithTimeout(`${BASE_URL}/cashiers/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name, pin }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || "Failed to create cashier")
+  }
+  return res.json()
+}
+
+export async function deactivateCashier(cashierId, token) {
+  const res = await fetchWithTimeout(`${BASE_URL}/cashiers/${cashierId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error("Failed to deactivate cashier")
+  return true
+}
